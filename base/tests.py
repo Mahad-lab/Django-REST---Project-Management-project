@@ -289,3 +289,35 @@ class UserSignUpTest(APITestCase):
         }
         response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+    
+class MembershipPermissionsTests(TestCase):
+    def setUp(self):
+        # Set up a client for making API requests
+        self.client = APIClient()
+        # Create a user
+        self.user = User.objects.create_user(username='testuser', password='testpassword')
+        # Create a project
+        self.project = Project.objects.create(name="Test Project", description="Test Project Description", created_by=self.user)
+        # Create a membership for the user in the project
+        self.membership = Membership.objects.create(project=self.project, member=self.user)
+
+    def test_set_can_add_members(self):
+        # Set the permission
+        self.membership.set_can_add_members(True)
+        self.membership.refresh_from_db()  # Refresh the instance to get updated values from the database
+        # Assert the permission was updated
+        self.assertTrue(self.membership.can_add_members)
+
+    def test_set_can_edit_project(self):
+        # Set the permission
+        self.membership.set_can_edit_project(True)
+        self.membership.refresh_from_db()
+        # Assert the permission was updated
+        self.assertTrue(self.membership.can_edit_project)
+
+    def test_set_can_delete_project(self):
+        # Set the permission
+        self.membership.set_can_delete_project(True)
+        self.membership.refresh_from_db()
+        # Assert the permission was updated
+        self.assertTrue(self.membership.can_delete_project)

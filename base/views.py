@@ -6,6 +6,7 @@ from .permissions import IsProjectCreatorOrMemberWithPermission, HasTaskPermissi
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from rest_framework.decorators import action
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -50,3 +51,26 @@ class UserSignUpView(APIView):
                 "message": "User created successfully."
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@action(detail=True, methods=['post'], permission_classes=[IsProjectCreatorOrMemberWithPermission])
+def set_member_permission(self, request, pk=None):
+    project = self.get_object()
+    user_id = request.data.get('user_id')
+    permission_type = request.data.get('permission_type')  # e.g., 'can_edit_project'
+    permission_value = request.data.get('permission_value', True)
+
+    try:
+        membership = Membership.objects.get(project=project, member_id=user_id)
+        if permission_type == 'can_edit_project':
+            membership.set_can_edit_project(permission_value)
+        elif permission_type == 'can_delete_project':
+            membership.set_can_delete_project(permission_value)
+        elif permission_type == 'can_add_members':
+            membership.set_can_add_members(permission_value)
+        else:
+            return Response({"detail": "Invalid permission type."}, status=400)
+
+        return Response({"detail": "Permission updated successfully."})
+    except Membership.DoesNotExist:
+        return Response({"detail": "Membership not found."}, status=404)

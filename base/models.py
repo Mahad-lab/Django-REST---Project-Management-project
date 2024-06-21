@@ -33,6 +33,18 @@ class Membership(models.Model):
     can_edit_project = models.BooleanField(default=False)
     can_delete_project = models.BooleanField(default=False)
 
+    def set_can_add_members(self, value: bool):
+        self.can_add_members = value
+        self.save()
+
+    def set_can_edit_project(self, value: bool):
+        self.can_edit_project = value
+        self.save()
+
+    def set_can_delete_project(self, value: bool):
+        self.can_delete_project = value
+        self.save()
+
 class Task(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField()
