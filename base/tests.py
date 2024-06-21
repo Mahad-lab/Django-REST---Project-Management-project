@@ -3,7 +3,9 @@ from django.test import TestCase
 from base.models import Project, Task
 from rest_framework import status
 from rest_framework.test import APITestCase
+from rest_framework.test import APIClient
 from django.utils import timezone
+from django.contrib.auth.models import User
 
 # Create your tests here.
 
@@ -190,3 +192,47 @@ class TaskAPITests(APITestCase):
         # Optionally, ensure the total count of tasks has decreased, indicating the task is actually removed
         self.assertEqual(Task.objects.count(), 1)
 
+class TokenObtainPairTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user_data = {
+            "username": "user1",
+            "password": "password123"
+        }
+        self.url = reverse('token_obtain_pair')
+        self.user = User.objects.create_user(**self.user_data)
+
+    def test_obtain_token(self):
+        response = self.client.post(self.url, self.user_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue('access' in response.data)
+
+    def test_invalid_username(self):
+        invalid_username_data = {
+            "username": "wrong",
+            "password": self.user_data["password"]
+        }
+        response = self.client.post(self.url, invalid_username_data, format='json')
+        self.assertNotEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_invalid_password(self):
+        invalid_password_data = {
+            "username": self.user_data["username"],
+            "password": "wrongpassword"
+        }
+        response = self.client.post(self.url, invalid_password_data, format='json')
+        self.assertNotEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_missing_username(self):
+        missing_username_data = {
+            "password": self.user_data["password"]
+        }
+        response = self.client.post(self.url, missing_username_data, format='json')
+        self.assertNotEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_missing_password(self):
+        missing_password_data = {
+            "username": self.user_data["username"]
+        }
+        response = self.client.post(self.url, missing_password_data, format='json')
+        self.assertNotEqual(response.status_code, status.HTTP_200_OK)
