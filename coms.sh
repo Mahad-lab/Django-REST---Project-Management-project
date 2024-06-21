@@ -21,9 +21,18 @@ case $command in
         echo "Applying migrations..."
         python manage.py migrate
         ;;
+    mmm)
+        echo "Making migrations and applying them..."
+        python manage.py makemigrations
+        python manage.py migrate
+        ;;
     test)
         echo "Running tests..."
         python manage.py test
+        ;;
+    su)
+        echo "Creating superuser..."
+        python manage.py createsuperuser
         ;;
     *)
         echo "Invalid command. Options are: start, makemigrations, migrate, test."
