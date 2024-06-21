@@ -1,6 +1,6 @@
 from django.urls import reverse
 from django.test import TestCase
-from base.models import Project, Task
+from base.models import Project, Task, Membership
 from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework.test import APIClient
@@ -42,7 +42,22 @@ class ProjectTestCase(TestCase):
 class ProjectAPITests(APITestCase):
     def setUp(self):
         # Create a sample project to be used in the tests
-        self.project = Project.objects.create(name="Sample Project", description="Sample Description")
+        # Authenticate the client
+        self.client = APIClient()
+        self.user_data = {
+            "username": "user1",
+            "password": "password123"
+        }
+        self.user = User.objects.create_user(**self.user_data)
+        self.client.force_authenticate(user=self.user)
+        self.token = self.client.post(reverse('token_obtain_pair'), self.user_data, format='json').data['access']
+        # self.project = Project.objects.create(name="Sample Project", description="Sample Description")
+        self.project = Project.objects.create(name="Sample Project", description="Sample Description", created_by=self.user)
+        # self.project.members.add(self.user) 
+        # OR
+        Membership.objects.create(project=self.project, member=self.user, can_delete_project=True)
+        self.project.save()
+        self.project_id = self.project.id
 
     def test_create_project(self):
         """
@@ -50,6 +65,7 @@ class ProjectAPITests(APITestCase):
         """
         url = reverse('project-list')  # Adjust 'project-list' to match your actual URL name for project creation
         data = {'name': 'New Project', 'description': 'New Description'}
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token)
         response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Project.objects.count(), 2)
@@ -60,6 +76,7 @@ class ProjectAPITests(APITestCase):
         Ensure we can retrieve a list of projects.
         """
         url = reverse('project-list')  # Adjust 'project-list' to match your actual URL name for project list
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token)
         response = self.client.get(url, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)  # Assuming there's only the setUp project in the database
@@ -70,6 +87,7 @@ class ProjectAPITests(APITestCase):
         """
         url = reverse('project-detail', args=[self.project.id])  
         data = {'name': 'Updated Project', 'description': 'Updated Description'}
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token)
         response = self.client.put(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.project.refresh_from_db()
@@ -81,6 +99,7 @@ class ProjectAPITests(APITestCase):
         Ensure we can soft delete a project by setting the deleted_at timestamp.
         """
         url = reverse('project-detail', args=[self.project.id])  
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token)
         response = self.client.delete(url, format='json', follow=True)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         
@@ -93,6 +112,27 @@ class ProjectAPITests(APITestCase):
         self.assertEqual(Project.objects.filter(deleted_at__isnull=True).count(), 0)
         # Optionally, ensure the total count of projects has decreased, indicating the project is actually removed
         self.assertEqual(Project.objects.count(), 1)
+
+    def test_project_permissions(self):
+        """
+        Ensure only the project creator or a member with permission can delete a project.
+        """
+        # Create a new user
+        user2 = User.objects.create_user(username='user2', password='password123')
+        token2 = self.client.post(reverse('token_obtain_pair'), {'username': 'user2', 'password': 'password123'}, format='json').data['access']
+        # Create a new project
+        project2 = Project.objects.create(name="Project 2", description="Project 2 Description", created_by=user2)
+        project2_id = project2.id
+        # Authenticate the new user
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token2)
+        # Attempt to delete the project created by another user
+        url = reverse('project-detail', args=[self.project_id])
+        response = self.client.delete(url, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Attempt to delete the project created by the authenticated user
+        url = reverse('project-detail', args=[project2_id])
+        response = self.client.delete(url, format='json')
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
 class TaskTestCase(TestCase):
     def test_create_task(self):
