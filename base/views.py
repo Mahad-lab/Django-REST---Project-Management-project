@@ -1,11 +1,11 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.response import Response
 from .models import Project, Task, Membership
-from .serializers import ProjectSerializer, TaskSerializer
+from .serializers import ProjectSerializer, TaskSerializer, UserRegistrationSerializer
 from .permissions import IsProjectCreatorOrMemberWithPermission, HasTaskPermission
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated
-from rest_framework import status
+from rest_framework.views import APIView
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -38,3 +38,15 @@ class TaskViewSet(viewsets.ModelViewSet):
     queryset = Task.objects.filter(deleted_at__isnull=True)
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated, HasTaskPermission]
+
+
+class UserSignUpView(APIView):
+    def post(self, request, *args, **kwargs):
+        serializer = UserRegistrationSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            return Response({
+                "user": UserRegistrationSerializer(user).data,
+                "message": "User created successfully."
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
